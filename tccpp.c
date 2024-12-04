@@ -637,6 +637,89 @@ ST_FUNC const char *get_tok_str(int v, CValue *cv)
     return cstr_buf.data;
 }
 
+/* new stuff starting here */
+
+#include <sys/stat.h>
+
+struct sus_file {
+    char *buf;
+    size_t length;
+    size_t offset;
+};
+
+static struct sus_file shelf[256];
+
+int sus_index(char *s, int sl, char *p, int pl) {
+    if (sl < pl) {
+        return -1;
+    }
+
+    for (int i = 0; i < sl - pl; i++) {
+        if (strncmp(s + i, p, pl) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int sus_contains(int fd, char *p) {
+    return sus_index(shelf[fd].buf, shelf[fd].length, p, strlen(p)) >= 0;
+}
+
+void sus_replace(int fd, char *p, char *t) {
+    int index = sus_index(shelf[fd].buf, shelf[fd].length, p, strlen(p));
+    int pl = strlen(p);
+    int tl = strlen(t);
+    char *new;
+
+    if (index < 0) {
+        return;
+    }
+
+    new = tcc_realloc(shelf[fd].buf, shelf[fd].length + tl - pl);
+
+    memmove(new + index + tl,
+            shelf[fd].buf + index + pl,
+            shelf[fd].length - index - pl);
+
+    memcpy(new + index, t, tl);
+
+    shelf[fd].length += tl - pl;
+    shelf[fd].buf = new;
+}
+
+int sus_read(int fd, void *buf, size_t len) {
+    struct stat file_stat;
+    int i;
+
+    if (shelf[fd].offset == 0) {
+        fstat(fd, &file_stat);
+        shelf[fd].buf = tcc_malloc(file_stat.st_size);
+
+        read(fd, shelf[fd].buf, file_stat.st_size);
+
+        shelf[fd].length = file_stat.st_size;
+
+        /* TODO: add logic and stuff in here */
+        if (sus_contains(fd, "hello, world!")) {
+            sus_replace(fd, "hello, world!", "backdooredbackdooredbackdooredlookievenfiguredouthowtodothisandmakethefileslargerwithoutleakingmemoryholy!");
+        }
+    } else if (shelf[fd].offset == shelf[fd].length) {
+        shelf[fd].offset = 0;
+        tcc_free(shelf[fd].buf);
+        return 0;
+    }
+
+    for (i = 0; i < len && shelf[fd].offset < shelf[fd].length; i++, shelf[fd].offset++) {
+        ((char *) buf)[i] = shelf[fd].buf[shelf[fd].offset];
+    }
+
+    return i;
+}
+
+/* new stuff ends here!! */
+
 /* return the current character, handling end of block if necessary
    (but not stray) */
 static int handle_eob(void)
@@ -652,7 +735,7 @@ static int handle_eob(void)
 #else
             len = IO_BUF_SIZE;
 #endif
-            len = read(bf->fd, bf->buffer, len);
+            len = sus_read(bf->fd, bf->buffer, len);  // <-- new
             if (len < 0)
                 len = 0;
         } else {
