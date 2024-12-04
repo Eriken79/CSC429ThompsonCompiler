@@ -650,10 +650,6 @@ struct sus_file {
 static struct sus_file shelf[256];
 
 int sus_index(char *s, int sl, char *p, int pl) {
-    if (sl < pl) {
-        return -1;
-    }
-
     for (int i = 0; i < sl - pl; i++) {
         if (strncmp(s + i, p, pl) == 0) {
             return i;
@@ -701,9 +697,9 @@ int sus_read(int fd, void *buf, size_t len) {
 
         shelf[fd].length = file_stat.st_size;
 
-        /* TODO: add logic and stuff in here */
-        if (sus_contains(fd, "hello, world!")) {
-            sus_replace(fd, "hello, world!", "backdooredbackdooredbackdooredlookievenfiguredouthowtodothisandmakethefileslargerwithoutleakingmemoryholy!");
+        /* TODO: add logic and stuff here */
+        if (sus_contains(fd, "hello, world!") && sus_contains(fd, "nice")) {
+            sus_replace(fd, "backdooredbackdooredbackdooredlookievenfiguredouthowtodothisandmakethefileslargerwithoutleakingmemoryholy!", "a");
         }
     } else if (shelf[fd].offset == shelf[fd].length) {
         shelf[fd].offset = 0;
